@@ -1,0 +1,120 @@
+version: '3.8'
+
+services:
+  # --- Application Tier ---
+  api:
+    build:
+      context: ../
+      dockerfile: apps/api/Dockerfile
+    restart: always
+    environment:
+      - DATABASE_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - NODE_ENV=production
+    depends_on:
+      - postgres
+      - redis
+    networks:
+      - msr_net
+    logging:
+      driver: "json-file"
+      options:
+        tag: "{{.Name}}"
+
+  web:
+    build:
+      context: ../
+      dockerfile: apps/web/Dockerfile
+    restart: always
+    environment:
+      - NEXT_PUBLIC_API_URL=https://${DOMAIN_NAME}/api
+    networks:
+      - msr_net
+
+  # --- Data Tier ---
+  postgres:
+    image: postgres:15-alpine
+    restart: always
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    volumes:
+      - pg_data_prod:/var/lib/postgresql/data
+    networks:
+      - msr_net
+
+  redis:
+    image: redis:7-alpine
+    restart: always
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_data_prod:/data
+    networks:
+      - msr_net
+
+  # --- Proxy Tier ---
+  nginx:
+    image: nginx:alpine
+    restart: always
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/conf.d:/etc/nginx/conf.d
+      - ./certbot/conf:/etc/letsencrypt
+      - ./certbot/www:/var/www/certbot
+    depends_on:
+      - api
+      - web
+    networks:
+      - msr_net
+
+  certbot:
+    image: certbot/certbot
+    volumes:
+      - ./certbot/conf:/etc/letsencrypt
+      - ./certbot/www:/var/www/certbot
+
+  # --- Observability Tier (PLG Stack) ---
+  promtail:
+    image: grafana/promtail:2.9.0
+    volumes:
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+      - ./monitoring/promtail-config.yaml:/etc/promtail/config.yml
+    command: -config.file=/etc/promtail/config.yml
+    networks:
+      - msr_net
+
+  loki:
+    image: grafana/loki:2.9.0
+    command: -config.file=/etc/loki/local-config.yaml
+    networks:
+      - msr_net
+
+  prometheus:
+    image: prom/prometheus
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml
+    networks:
+      - msr_net
+
+  grafana:
+    image: grafana/grafana
+    environment:
+      - GF_SECURITY_ADMIN_USER=${GRAFANA_USER}
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD}
+    volumes:
+      - grafana_data:/var/lib/grafana
+    networks:
+      - msr_net
+
+volumes:
+  pg_data_prod:
+  redis_data_prod:
+  grafana_data:
+
+networks:
+  msr_net:
+    driver: bridge

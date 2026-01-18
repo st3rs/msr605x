@@ -1,0 +1,40 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: msr_postgres
+    environment:
+      POSTGRES_USER: msr_user
+      POSTGRES_PASSWORD: msr_password
+      POSTGRES_DB: msr_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U msr_user -d msr_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: msr_redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    command: redis-server --appendonly yes
+
+  # Optional: EMQX for MQTT if we switched from WebSockets
+  # emqx:
+  #   image: emqx/emqx:5.0.20
+  #   ports:
+  #     - "1883:1883"
+  #     - "8083:8083"
+  #     - "18083:18083"
+
+volumes:
+  pg_data:
+  redis_data:

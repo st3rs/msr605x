@@ -1,0 +1,5 @@
+{
+  "name": "MSR605X QA Manager",
+  "description": "Compliance-focused device management dashboard for MSR605X QA workflows. Features RBAC, audit logging, and masked data validation.",
+  "requestFramePermissions": []
+}

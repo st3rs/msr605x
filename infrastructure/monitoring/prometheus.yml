@@ -1,0 +1,12 @@
+global:
+  scrape_interval: 15s
+
+scrape_configs:
+  - job_name: 'msr_api'
+    metrics_path: '/metrics' # Ensure NestJS exports this via prometheus-client
+    static_configs:
+      - targets: ['api:3001']
+
+  - job_name: 'docker_containers'
+    static_configs:
+      - targets: ['cadvisor:8080'] # If you add cadvisor
